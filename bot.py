@@ -9,11 +9,13 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 # 🔹 User sends an audio file, and bot asks for format selection
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
+    # Store the file_id in the data (not in callback data directly)
+    file_id = message.audio.file_id
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("MP3", callback_data=f"convert_mp3_{message.audio.file_id}"),
-         InlineKeyboardButton("WAV", callback_data=f"convert_wav_{message.audio.file_id}")],
-        [InlineKeyboardButton("FLAC", callback_data=f"convert_flac_{message.audio.file_id}"),
-         InlineKeyboardButton("M4A", callback_data=f"convert_m4a_{message.audio.file_id}")]
+        [InlineKeyboardButton("MP3", callback_data=f"convert_mp3_{file_id}"),
+         InlineKeyboardButton("WAV", callback_data=f"convert_wav_{file_id}")],
+        [InlineKeyboardButton("FLAC", callback_data=f"convert_flac_{file_id}"),
+         InlineKeyboardButton("M4A", callback_data=f"convert_m4a_{file_id}")]
     ])
     await message.reply_text("🔄 Choose the format to convert:", reply_markup=keyboard)
 
@@ -38,7 +40,8 @@ async def convert_audio(client, callback_query):
     if not output_format:
         await callback_query.answer("❌ Invalid format choice!")
         return
-    
+
+    # Download the audio file using the file_id
     file_path = await client.download_media(audio_file_id, file_name=f"{Config.DOWNLOAD_FOLDER}input_audio")
     output_path = f"{Config.DOWNLOAD_FOLDER}converted.{output_format}"
 
