@@ -10,7 +10,7 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 file_data = {}  # Store audio file data
 
 # 🔹 Set your custom thumbnail image (Upload your image and replace the file path)
-CUSTOM_THUMBNAIL = "your_thumbnail.jpg"  # Replace with your image file path
+CUSTOM_THUMBNAIL = "DevDLK.jpg"  # Replace with your image file path
 
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
