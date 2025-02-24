@@ -19,6 +19,7 @@ Supports **bitrate selection**, **metadata editing**, and **batch conversion**.
 ### **1️⃣ Install Dependencies**  
 ```sh
 pip install -r requirements.txt
+&& https://github.com/jonathanong/heroku-buildpack-ffmpeg-latest.git
 
 2️⃣ Set Up Environment Variables
 
