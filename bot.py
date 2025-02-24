@@ -1,27 +1,25 @@
+import os
+import ffmpeg
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import os
-import subprocess
+from PIL import Image
 import hashlib
 from config import Config
 
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
-file_data = {}  # Store audio file data
+# Dictionary to store file IDs temporarily
+file_data = {}
 
-# 🔹 Set your custom thumbnail image (Upload your image and replace the file path)
-CUSTOM_THUMBNAIL = "DevDLK.jpg"  # Replace with your image file path
-
-# 🔹 User sends an audio file, bot extracts the title
+# 🔹 User sends an audio file, and bot asks for format selection
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
-    file_id = message.audio.file_id  
-    file_name = message.audio.file_name or "Unknown_Title"
-
-    # Generate a unique identifier for the file
-    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
+    file_id = message.audio.file_id  # Store the file_id
+    # Generate a short identifier (hash) for the file_id
+    file_hash = hashlib.md5(file_id.encode()).hexdigest()[:8]
     
-    file_data[file_hash] = {"file_id": file_id, "title": file_name}  
+    # Store the file ID in memory with the hash as the key
+    file_data[file_hash] = file_id
     
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("MP3", callback_data=f"mp3_{file_hash}")],
@@ -29,10 +27,9 @@ async def ask_format(client, message):
         [InlineKeyboardButton("FLAC", callback_data=f"flac_{file_hash}")],
         [InlineKeyboardButton("M4A", callback_data=f"m4a_{file_hash}")]
     ])
-    
-    await message.reply_text(f"🎵 Choose format to convert '{file_name}':", reply_markup=keyboard)
+    await message.reply_text("🔄 Choose the format to convert:", reply_markup=keyboard)
 
-# 🔹 Convert audio and add your custom thumbnail
+# 🔹 Handle format conversion when user selects a format
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
@@ -40,42 +37,58 @@ async def convert_audio(client, callback_query):
         await callback_query.answer("❌ Invalid request!")
         return
 
-    format_map = {"mp3": "mp3", "wav": "wav", "flac": "flac", "m4a": "m4a"}
-    output_format = format_map.get(data_parts[0])
-    file_hash = data_parts[1]
+    format_map = {
+        "mp3": "mp3",
+        "wav": "wav",
+        "flac": "flac",
+        "m4a": "m4a"
+    }
+    
+    output_format = format_map.get(data_parts[0])  # Get the format (mp3, wav, etc.)
+    file_hash = data_parts[1]  # Get the hash from callback data
 
     if not output_format:
         await callback_query.answer("❌ Invalid format choice!")
         return
-
-    file_info = file_data.get(file_hash)
-    if not file_info:
+    
+    # Retrieve the actual file ID using the hash
+    file_id = file_data.get(file_hash)
+    if not file_id:
         await callback_query.answer("❌ File ID not found!")
         return
 
-    file_id = file_info["file_id"]
-    original_title = file_info["title"].split(".")[0]  # Remove extension
-    new_title = f"{original_title}.{output_format}"  # Rename with new format
+    # Download the audio file using the file_id
+    file_path = await client.download_media(file_id, file_name=f"{Config.DOWNLOAD_FOLDER}input_audio")
+    output_path = f"{Config.DOWNLOAD_FOLDER}converted.{output_format}"
 
-    input_file = f"{Config.DOWNLOAD_FOLDER}/input_audio"
-    output_file = f"{Config.DOWNLOAD_FOLDER}/{new_title}"
+    # Path to your custom thumbnail image
+    thumbnail_path = "DevDLK.jpg"
     
-    file_path = await client.download_media(file_id, file_name=input_file)
-
-    # FFmpeg command with your custom thumbnail
-    command = [
-        "ffmpeg", "-i", file_path, "-i", CUSTOM_THUMBNAIL,
-        "-map", "0:a", "-map", "1:v", "-c:v", "jpeg", "-disposition:v", "attached_pic",
-        "-y", output_file
-    ]
-
+    # Ensure the image is valid
     try:
-        subprocess.run(command, check=True)
-        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵")
-        os.remove(output_file)
+        # Open and save the image in a compatible format (JPEG or PNG)
+        image = Image.open(thumbnail_path)
+        image.save("thumbnail_fixed.jpg", format="JPEG")  # Save as JPEG
+        thumbnail_path = "thumbnail_fixed.jpg"  # Update the thumbnail path
+    except Exception as e:
+        await callback_query.message.reply_text(f"❌ Error with the image file: {e}")
+        return
+    
+    try:
+        # Apply the thumbnail to the audio file and convert
+        ffmpeg.input(file_path).output(output_path, vcodec='libx264', acodec='libmp3lame', map='0', metadata='title=Music', shortest=None, y=True, vf=f"movie={thumbnail_path} [v]; [a]anull[a]").run()
+        
+        # Send the converted file back to the user
+        await callback_query.message.reply_document(output_path, caption=f"✅ Here is your converted file ({output_format}) 🎵")
+        
+        # Clean up
+        os.remove(output_path)
+        os.remove(file_path)
+        os.remove(thumbnail_path)  # Remove the temporary thumbnail file
+
     except Exception as e:
         await callback_query.message.reply_text(f"❌ Error converting file: {e}")
-
-    os.remove(file_path)
+        os.remove(file_path)
+        os.remove(thumbnail_path)  # Ensure the image is cleaned up
 
 bot.run()
