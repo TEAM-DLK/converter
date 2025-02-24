@@ -9,13 +9,12 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 # 🔹 User sends an audio file, and bot asks for format selection
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
-    # Store the file_id in the data (not in callback data directly)
-    file_id = message.audio.file_id
+    file_id = message.audio.file_id  # Store the file_id
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("MP3", callback_data=f"convert_mp3_{file_id}"),
-         InlineKeyboardButton("WAV", callback_data=f"convert_wav_{file_id}")],
-        [InlineKeyboardButton("FLAC", callback_data=f"convert_flac_{file_id}"),
-         InlineKeyboardButton("M4A", callback_data=f"convert_m4a_{file_id}")]
+        [InlineKeyboardButton("MP3", callback_data=f"mp3_{file_id}")],
+        [InlineKeyboardButton("WAV", callback_data=f"wav_{file_id}")],
+        [InlineKeyboardButton("FLAC", callback_data=f"flac_{file_id}")],
+        [InlineKeyboardButton("M4A", callback_data=f"m4a_{file_id}")]
     ])
     await message.reply_text("🔄 Choose the format to convert:", reply_markup=keyboard)
 
@@ -23,19 +22,19 @@ async def ask_format(client, message):
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
-    if len(data_parts) != 3:
+    if len(data_parts) != 2:
         await callback_query.answer("❌ Invalid request!")
         return
 
     format_map = {
-        "convert_mp3": "mp3",
-        "convert_wav": "wav",
-        "convert_flac": "flac",
-        "convert_m4a": "m4a"
+        "mp3": "mp3",
+        "wav": "wav",
+        "flac": "flac",
+        "m4a": "m4a"
     }
     
-    output_format = format_map.get(f"{data_parts[0]}_{data_parts[1]}")
-    audio_file_id = data_parts[2]
+    output_format = format_map.get(data_parts[0])  # Get the format (mp3, wav, etc.)
+    audio_file_id = data_parts[1]  # Get the file ID from the callback
 
     if not output_format:
         await callback_query.answer("❌ Invalid format choice!")
