@@ -3,14 +3,25 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import os
 import subprocess
 import hashlib
-from mutagen.easyid3 import EasyID3
-from mutagen.mp3 import MP3
 from config import Config
 
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
 user_thumbnails = {}  # Store user thumbnails (user_id -> file_path)
+
+# 🔹 Start Command with Inline Buttons
+@bot.on_message(filters.command("start"))
+async def start(client, message):
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Owner", url="https://t.me/iiiIiiiAiiiMiii")],
+        [InlineKeyboardButton("Updates", url="https://t.me/DLKDevelopers")]
+    ])
+    await message.reply_text(
+        "Welcome to the Audio Converter Bot! 🎶\n"
+        "Send your audio files to convert. 😎",
+        reply_markup=keyboard
+    )
 
 # 🔹 Save user's custom thumbnail
 @bot.on_message(filters.photo)
