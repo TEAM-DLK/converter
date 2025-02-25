@@ -29,7 +29,8 @@ async def save_thumbnail(client, message):
     user_id = message.from_user.id
     thumb_path = os.path.join("/tmp", f"thumb_{user_id}.jpg")  # Use Heroku temp folder
 
-    await message.photo.download(file_name=thumb_path)
+    # Use client.download_media to download the photo
+    await client.download_media(message.photo, file_name=thumb_path)
     user_thumbnails[user_id] = thumb_path
     
     await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
