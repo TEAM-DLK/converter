@@ -8,7 +8,11 @@ from config import Config
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
-selected_effects = {}  # Store effects selected by users
+selected_effects = {}  # Store selected effects for each file
+
+# Function to generate a short file hash (8 characters from the md5 hash)
+def generate_short_file_hash(file_id):
+    return hashlib.md5(str(file_id).encode()).hexdigest()[:8]  # Take only the first 8 characters
 
 # 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -27,15 +31,15 @@ async def start(client, message):
         "📂 Send an audio file to convert it to another format. 😎",
         reply_markup=keyboard
     )
-    
+
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
     file_id = message.audio.file_id  
     file_name = message.audio.file_name or "Unknown_Title"  # Extract title
 
-    # Generate a unique identifier for the file
-    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
+    # Generate a unique, short identifier for the file (limit to 8 characters)
+    file_hash = generate_short_file_hash(file_id)
     
     file_data[file_hash] = {"file_id": file_id, "title": file_name}  # Store data
     
@@ -97,7 +101,7 @@ async def apply_effect_and_convert(client, callback_query):
         reply_markup=keyboard
     )
 
-# 🔹 Convert audio and apply the effect
+# 🔹 Convert audio and apply effects
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
@@ -118,14 +122,11 @@ async def convert_audio(client, callback_query):
         await callback_query.answer("❌ File ID not found!")
         return
 
-    # Get the effect selected by the user
-    effect = selected_effects.get(file_hash, "noeffects")
-
     user_id = callback_query.from_user.id
     file_id = file_info["file_id"]
     original_title = file_info["title"].split(".")[0]  # Remove extension
     sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
-    new_title = f"{sanitized_title}_{effect}.{output_format}"  # Rename with new format and effect
+    new_title = f"{sanitized_title}.{output_format}"  # Rename with new format
 
     input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
     output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
@@ -137,14 +138,6 @@ async def convert_audio(client, callback_query):
     if os.path.exists(output_file):
         os.remove(output_file)
 
-    # Define the FFmpeg command based on the selected effect
-    effect_map = {
-        "slow": ["-filter:a", "atempo=0.7"],  # Slow down the audio by half
-        "reverb": ["-filter:a", "aecho=0.8:0.88:60:0.4"],  # Apply reverb
-        "pitchdown": ["-filter:a", "asetrate=44100*0.8"],  # Pitch down the audio
-        "noeffects": []  # No effect
-    }
-
     # Define FFmpeg codec mapping
     codec_map = {
         "mp3": ["-c:a", "libmp3lame"],
@@ -153,15 +146,26 @@ async def convert_audio(client, callback_query):
         "m4a": ["-c:a", "aac"]
     }
 
-    # Prepare the command
+    # FFmpeg command
     command = [
         "ffmpeg", "-i", file_path
-    ] + effect_map[effect] + codec_map[output_format] + ["-y", output_file]
+    ] + codec_map[output_format]
+
+    # Apply effects (slow, reverb, pitch down)
+    effect = selected_effects.get(file_hash)
+    if effect == "slow":
+        command += ["-filter:a", "atempo=0.5"]
+    elif effect == "reverb":
+        command += ["-filter:a", "aecho=0.8:0.88:60:0.4"]
+    elif effect == "pitchdown":
+        command += ["-filter:a", "asetrate=44100*0.8,aresample=44100"]
+
+    command += ["-y", output_file]
 
     try:
         # Run FFmpeg and capture errors
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
+        
         if process.returncode != 0:
             error_msg = process.stderr.decode()
             await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
@@ -172,10 +176,10 @@ async def convert_audio(client, callback_query):
             [InlineKeyboardButton("Join Update Channel", url="https://t.me/DLKDevelopers")]
         ])
 
-        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your modified file: **{new_title}** 🎶", reply_markup=keyboard)
+        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
         os.remove(output_file)  # Clean up
     except Exception as e:
-        await callback_query.message.reply_text(f"❌ Error applying effect or converting file: {e}")
+        await callback_query.message.reply_text(f"❌ Error converting file: {e}")
 
     # Cleanup input file
     os.remove(file_path)
