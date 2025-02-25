@@ -8,11 +8,6 @@ from config import Config
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
-selected_effects = {}  # Store selected effects for each file
-
-# Function to generate a short file hash (8 characters from the md5 hash)
-def generate_short_file_hash(file_id):
-    return hashlib.md5(str(file_id).encode()).hexdigest()[:8]  # Take only the first 8 characters
 
 # 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -31,15 +26,15 @@ async def start(client, message):
         "📂 Send an audio file to convert it to another format. 😎",
         reply_markup=keyboard
     )
-
+    
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
     file_id = message.audio.file_id  
     file_name = message.audio.file_name or "Unknown_Title"  # Extract title
 
-    # Generate a unique, short identifier for the file (limit to 8 characters)
-    file_hash = generate_short_file_hash(file_id)
+    # Generate a unique identifier for the file (short hash for callback data)
+    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
     
     file_data[file_hash] = {"file_id": file_id, "title": file_name}  # Store data
     
@@ -52,56 +47,7 @@ async def ask_format(client, message):
     
     await message.reply_text(f"🎵 Choose format to convert '{file_name}':", reply_markup=keyboard)
 
-# 🔹 /edit Command to apply effects and select format
-@bot.on_message(filters.command("edit"))
-async def edit_audio(client, message):
-    file_hash = message.reply_to_message.audio.file_id
-    original_title = message.reply_to_message.audio.file_name.split(".")[0]  # Remove extension
-    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
-
-    # Send options for applying effects
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Slow", callback_data=f"slow_{file_hash}")],
-        [InlineKeyboardButton("Reverb", callback_data=f"reverb_{file_hash}")],
-        [InlineKeyboardButton("Pitch Down", callback_data=f"pitchdown_{file_hash}")],
-        [InlineKeyboardButton("No Effects", callback_data=f"noeffects_{file_hash}")]
-    ])
-
-    await message.reply_text(
-        "🎶 Choose an effect to apply to the audio. 🎵",
-        reply_markup=keyboard
-    )
-
-# 🔹 User selects an effect via inline buttons
-@bot.on_callback_query()
-async def apply_effect_and_convert(client, callback_query):
-    data_parts = callback_query.data.split("_")
-    if len(data_parts) != 2:
-        await callback_query.answer("❌ Invalid request!")
-        return
-
-    effect = data_parts[0].lower()
-    file_hash = data_parts[1]
-
-    # Store the selected effect
-    selected_effects[file_hash] = effect
-
-    # Respond to user
-    await callback_query.answer(f"Effect '{effect}' selected! Now choose the output format.")
-
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("MP3", callback_data=f"mp3_{file_hash}")],
-        [InlineKeyboardButton("WAV", callback_data=f"wav_{file_hash}")],
-        [InlineKeyboardButton("FLAC", callback_data=f"flac_{file_hash}")],
-        [InlineKeyboardButton("M4A", callback_data=f"m4a_{file_hash}")]
-    ])
-
-    await callback_query.message.edit_text(
-        f"🎶 Effect '{effect}' applied! Now choose the format to convert your file.",
-        reply_markup=keyboard
-    )
-
-# 🔹 Convert audio and apply effects
+# 🔹 Convert audio and rename using the title
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
@@ -151,15 +97,6 @@ async def convert_audio(client, callback_query):
         "ffmpeg", "-i", file_path
     ] + codec_map[output_format]
 
-    # Apply effects (slow, reverb, pitch down)
-    effect = selected_effects.get(file_hash)
-    if effect == "slow":
-        command += ["-filter:a", "atempo=0.5"]
-    elif effect == "reverb":
-        command += ["-filter:a", "aecho=0.8:0.88:60:0.4"]
-    elif effect == "pitchdown":
-        command += ["-filter:a", "asetrate=44100*0.8,aresample=44100"]
-
     command += ["-y", output_file]
 
     try:
@@ -184,4 +121,52 @@ async def convert_audio(client, callback_query):
     # Cleanup input file
     os.remove(file_path)
 
-bot.run()
+# 🔹 Edit audio (Apply effects like slow, reverb, pitch down)
+@bot.on_message(filters.command("edit"))
+async def edit_audio(client, message):
+    # Extract file data from user message and handle edit operations (slow, reverb, pitch down)
+    args = message.text.split(' ')[1:]  # Get arguments (e.g. "slow reverb")
+    
+    if not args:
+        await message.reply_text("❌ Please specify effects to apply (e.g. /edit slow reverb).")
+        return
+    
+    file_hash = hashlib.md5(message.text.encode()).hexdigest()[:8]  # Create a unique hash for file
+
+    # Apply effects based on args (example implementation for slow, reverb, pitch down)
+    input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_output")
+
+    effect_commands = []
+
+    if "slow" in args:
+        effect_commands.append("-filter:a")
+        effect_commands.append("atempo=0.5")  # Slow down by 50%
+    
+    if "reverb" in args:
+        effect_commands.append("-af")
+        effect_commands.append("aecho=0.8:0.9:1000:0.3")  # Apply reverb
+
+    if "pitch" in args:
+        effect_commands.append("-filter:a")
+        effect_commands.append("asetrate=44100*0.9")  # Pitch down by 10%
+
+    if not effect_commands:
+        await message.reply_text("❌ No valid effects provided.")
+        return
+
+    # Run FFmpeg with effects
+    command = ["ffmpeg", "-i", input_file] + effect_commands + ["-y", output_file]
+    
+    try:
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if process.returncode != 0:
+            error_msg = process.stderr.decode()
+            await message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
+            return
+
+        await message.reply_document(output_file, caption="✅ Here is your edited audio file with effects!")
+        os.remove(output_file)  # Clean up
+    except Exception as e:
+        await message.reply_text(f"❌ Error editing file: {e}")
