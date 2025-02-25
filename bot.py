@@ -33,7 +33,7 @@ async def ask_format(client, message):
     file_id = message.audio.file_id  
     file_name = message.audio.file_name or "Unknown_Title"  # Extract title
 
-    # Generate a unique identifier for the file (short hash for callback data)
+    # Generate a unique identifier for the file
     file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
     
     file_data[file_hash] = {"file_id": file_id, "title": file_name}  # Store data
@@ -121,52 +121,4 @@ async def convert_audio(client, callback_query):
     # Cleanup input file
     os.remove(file_path)
 
-# 🔹 Edit audio (Apply effects like slow, reverb, pitch down)
-@bot.on_message(filters.command("edit"))
-async def edit_audio(client, message):
-    # Extract file data from user message and handle edit operations (slow, reverb, pitch down)
-    args = message.text.split(' ')[1:]  # Get arguments (e.g. "slow reverb")
-    
-    if not args:
-        await message.reply_text("❌ Please specify effects to apply (e.g. /edit slow reverb).")
-        return
-    
-    file_hash = hashlib.md5(message.text.encode()).hexdigest()[:8]  # Create a unique hash for file
-
-    # Apply effects based on args (example implementation for slow, reverb, pitch down)
-    input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
-    output_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_output")
-
-    effect_commands = []
-
-    if "slow" in args:
-        effect_commands.append("-filter:a")
-        effect_commands.append("atempo=0.5")  # Slow down by 50%
-    
-    if "reverb" in args:
-        effect_commands.append("-af")
-        effect_commands.append("aecho=0.8:0.9:1000:0.3")  # Apply reverb
-
-    if "pitch" in args:
-        effect_commands.append("-filter:a")
-        effect_commands.append("asetrate=44100*0.9")  # Pitch down by 10%
-
-    if not effect_commands:
-        await message.reply_text("❌ No valid effects provided.")
-        return
-
-    # Run FFmpeg with effects
-    command = ["ffmpeg", "-i", input_file] + effect_commands + ["-y", output_file]
-    
-    try:
-        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        if process.returncode != 0:
-            error_msg = process.stderr.decode()
-            await message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
-            return
-
-        await message.reply_document(output_file, caption="✅ Here is your edited audio file with effects!")
-        os.remove(output_file)  # Clean up
-    except Exception as e:
-        await message.reply_text(f"❌ Error editing file: {e}")
+bot.run()
