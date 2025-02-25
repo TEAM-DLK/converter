@@ -109,11 +109,14 @@ async def convert_audio(client, callback_query):
     ]
 
     try:
-        subprocess.run(command, check=True)
+        result = subprocess.run(command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        print(f"FFmpeg output: {result.stdout.decode()}")
+        print(f"FFmpeg error: {result.stderr.decode()}")
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵")
         os.remove(output_file)
-    except Exception as e:
-        await callback_query.message.reply_text(f"❌ Error converting file: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error during conversion: {e.stderr.decode()}")
+        await callback_query.message.reply_text(f"❌ Error converting file: {e.stderr.decode()}")
 
     os.remove(file_path)
 
