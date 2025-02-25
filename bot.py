@@ -3,11 +3,17 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import os
 import subprocess
 import hashlib
+import re
 from config import Config
 
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
+
+# 🔹 Updated File Name Sanitization Function
+def sanitize_filename(filename: str):
+    # Allow only alphanumeric characters, spaces, underscores, hyphens, and all Unicode characters (including Sinhala)
+    return re.sub(r'[^\w\s\-_.,()&]', '', filename)
 
 # 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -79,7 +85,7 @@ async def convert_audio(client, callback_query):
     user_id = callback_query.from_user.id
     file_id = file_info["file_id"]
     original_title = file_info["title"].split(".")[0]  
-    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  
+    sanitized_title = sanitize_filename(original_title)  # Use new sanitized function
     new_title = f"{sanitized_title}.{output_format}"
 
     input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
