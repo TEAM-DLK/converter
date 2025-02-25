@@ -1,5 +1,4 @@
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import os
 import subprocess
 import hashlib
@@ -16,17 +15,101 @@ async def start(client, message):
     sticker_id = "CAACAgUAAxkBAAIIi2e-DwMaYKLZd06WiF_0KQuKLwNCAAIFDwACeswpVXELUmxGWKyfNgQ"  # Replace this with your sticker file_id or URL
     await message.reply_sticker(sticker_id)
 
-    # Then send the welcome message with inline buttons
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Owner", url="https://t.me/iiiIiiiAiiiMiii")],
-        [InlineKeyboardButton("Updates", url="https://t.me/DLKDevelopers")]
-    ])
+    # Then send the welcome message
     await message.reply_text(
         "🎶 Welcome to the Audio Converter Bot! 🎵\n"
-        "📂 Send an audio file to convert it to another format. 😎",
-        reply_markup=keyboard
+        "📂 Send an audio file to convert it to another format or edit it. 😎\n"
+        "💬 Use /speed, /reverb, or /pitch to edit your audio."
     )
+
+# 🔹 Speed Adjustment Command
+@bot.on_message(filters.command("speed"))
+async def change_speed(client, message):
+    if not message.reply_to_message or not message.reply_to_message.audio:
+        await message.reply_text("❌ Reply to an audio file to change speed.")
+        return
+
+    speed = message.text.split(" ")[1] if len(message.text.split(" ")) > 1 else "1.5"
     
+    file_id = message.reply_to_message.audio.file_id
+    file_name = message.reply_to_message.audio.file_name or "Unknown_Title"
+    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
+
+    # Process the audio and change speed using FFmpeg
+    input_file = await client.download_media(file_id, file_name=f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_speed_{speed}.mp3")
+
+    command = [
+        "ffmpeg", "-i", input_file, "-filter:a", f"atempo={speed}", "-vn", output_file
+    ]
+    
+    try:
+        subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        await message.reply_document(output_file, caption=f"✅ Your audio with speed {speed}x.")
+        os.remove(output_file)  # Clean up
+    except Exception as e:
+        await message.reply_text(f"❌ Error changing speed: {e}")
+    
+    os.remove(input_file)
+
+# 🔹 Reverb Effect Command
+@bot.on_message(filters.command("reverb"))
+async def add_reverb(client, message):
+    if not message.reply_to_message or not message.reply_to_message.audio:
+        await message.reply_text("❌ Reply to an audio file to add reverb effect.")
+        return
+
+    file_id = message.reply_to_message.audio.file_id
+    file_name = message.reply_to_message.audio.file_name or "Unknown_Title"
+    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
+
+    # Process the audio and add reverb effect using FFmpeg
+    input_file = await client.download_media(file_id, file_name=f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_reverb.mp3")
+
+    command = [
+        "ffmpeg", "-i", input_file, "-filter:a", "aecho=0.8:0.9:1000:0.3", "-vn", output_file
+    ]
+    
+    try:
+        subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        await message.reply_document(output_file, caption="✅ Your audio with reverb effect.")
+        os.remove(output_file)  # Clean up
+    except Exception as e:
+        await message.reply_text(f"❌ Error adding reverb: {e}")
+    
+    os.remove(input_file)
+
+# 🔹 Pitch Adjustment Command
+@bot.on_message(filters.command("pitch"))
+async def adjust_pitch(client, message):
+    if not message.reply_to_message or not message.reply_to_message.audio:
+        await message.reply_text("❌ Reply to an audio file to adjust pitch.")
+        return
+
+    pitch = message.text.split(" ")[1] if len(message.text.split(" ")) > 1 else "1.0"
+    
+    file_id = message.reply_to_message.audio.file_id
+    file_name = message.reply_to_message.audio.file_name or "Unknown_Title"
+    file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
+
+    # Process the audio and adjust pitch using FFmpeg
+    input_file = await client.download_media(file_id, file_name=f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_pitch_{pitch}.mp3")
+
+    command = [
+        "ffmpeg", "-i", input_file, "-filter:a", f"asetrate={pitch}", "-vn", output_file
+    ]
+    
+    try:
+        subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        await message.reply_document(output_file, caption=f"✅ Your audio with pitch adjusted to {pitch}.")
+        os.remove(output_file)  # Clean up
+    except Exception as e:
+        await message.reply_text(f"❌ Error adjusting pitch: {e}")
+    
+    os.remove(input_file)
+
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
