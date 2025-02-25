@@ -9,10 +9,14 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 
 file_data = {}  # Store audio file data (file_id and title)
 
-# 🔹 Start Command with Inline Buttons and Sticker
+# 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
 async def start(client, message):
-    # Send the welcome message
+    # Send a sticker first
+    sticker_id = "CAACAgUAAxkBAAIIi2e-DwMaYKLZd06WiF_0KQuKLwNCAAIFDwACeswpVXELUmxGWKyfNgQ"  # Replace this with your sticker file_id or URL
+    await message.reply_sticker(sticker_id)
+
+    # Then send the welcome message with inline buttons
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("Owner", url="https://t.me/iiiIiiiAiiiMiii")],
         [InlineKeyboardButton("Updates", url="https://t.me/DLKDevelopers")]
@@ -22,11 +26,7 @@ async def start(client, message):
         "📂 Send an audio file to convert it to another format. 😎",
         reply_markup=keyboard
     )
-
-    # Send a sticker after the welcome message
-    sticker_id = "CAACAgUAAxkBAAIIi2e-DwMaYKLZd06WiF_0KQuKLwNCAAIFDwACeswpVXELUmxGWKyfNgQ"  # Replace this with your sticker file_id or URL
-    await message.reply_sticker(sticker_id)
-
+    
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
