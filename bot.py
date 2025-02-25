@@ -11,7 +11,7 @@ file_data = {}  # Store audio file data (file_id and title)
 user_thumbnails = {}  # Store user thumbnails (user_id -> file_path)
 
 # Path to your default album cover image
-DEFAULT_THUMBNAIL = os.path.join(Config.DOWNLOAD_FOLDER, "default_cover.jpg")
+DEFAULT_THUMBNAIL ="default_cover.jpg"
 
 # 🔹 Start Command with Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -109,14 +109,11 @@ async def convert_audio(client, callback_query):
     ]
 
     try:
-        result = subprocess.run(command, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        print(f"FFmpeg output: {result.stdout.decode()}")
-        print(f"FFmpeg error: {result.stderr.decode()}")
+        subprocess.run(command, check=True)
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵")
         os.remove(output_file)
-    except subprocess.CalledProcessError as e:
-        print(f"Error during conversion: {e.stderr.decode()}")
-        await callback_query.message.reply_text(f"❌ Error converting file: {e.stderr.decode()}")
+    except Exception as e:
+        await callback_query.message.reply_text(f"❌ Error converting file: {e}")
 
     os.remove(file_path)
 
