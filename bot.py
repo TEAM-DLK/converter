@@ -34,7 +34,7 @@ async def save_thumbnail(client, message):
     user_thumbnails[user_id] = thumb_path
     
     await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
-    
+
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
@@ -120,12 +120,12 @@ async def convert_audio(client, callback_query):
         
         if process.returncode != 0:
             error_msg = process.stderr.decode()
-            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
+            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="Markdown")
             return
 
         # Send the converted file
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Join @DLKDevelopers", url="https://t.me/DLKDevelopers")]
+            [InlineKeyboardButton("🇱🇰| DLK Developers", url="https://t.me/DLKDevelopers")]
         ])
 
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
