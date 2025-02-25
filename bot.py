@@ -8,7 +8,6 @@ from config import Config
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
-user_thumbnails = {}  # Store user thumbnails (user_id -> file_path)
 
 # 🔹 Start Command with Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -22,17 +21,6 @@ async def start(client, message):
         "📂 Send an audio file to convert it to another format. 😎",
         reply_markup=keyboard
     )
-
-# 🔹 Save user's custom thumbnail
-@bot.on_message(filters.photo)
-async def save_thumbnail(client, message):
-    user_id = message.from_user.id
-    thumb_path = os.path.join(Config.DOWNLOAD_FOLDER, f"thumb_{user_id}.jpg")
-
-    await message.photo.download(file_name=thumb_path)
-    user_thumbnails[user_id] = thumb_path
-    
-    await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
 
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
@@ -91,9 +79,6 @@ async def convert_audio(client, callback_query):
     if os.path.exists(output_file):
         os.remove(output_file)
 
-    # Get user's thumbnail (if available)
-    thumbnail = user_thumbnails.get(user_id, None)
-
     # Define FFmpeg codec mapping
     codec_map = {
         "mp3": ["-c:a", "libmp3lame"],
@@ -106,10 +91,6 @@ async def convert_audio(client, callback_query):
     command = [
         "ffmpeg", "-i", file_path
     ] + codec_map[output_format]
-
-    # Attach thumbnail (only for MP3/M4A)
-    if thumbnail and output_format in ["mp3", "m4a"]:
-        command += ["-i", thumbnail, "-map", "0:a", "-map", "1:v", "-c:v", "jpeg", "-disposition:v", "attached_pic"]
 
     command += ["-y", output_file]
 
