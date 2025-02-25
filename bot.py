@@ -13,41 +13,49 @@ file_data = {}  # Store audio file data (file_id and title)
 @bot.on_message(filters.command("start"))
 async def start(client, message):
     # Send a sticker first
-    sticker_id = "CAACAgUAAxkBAAIIi2e-DwMaYKLZd06WiF_0KQuKLwNCAAIFDwACeswpVXELUmxGWKyfNgQ"  # Replace this with your sticker file_id or URL
+    sticker_id = "CAACAgUAAxkBAAIIi2e-DwMaYKLZd06WiF_0KQuKLwNCAAIFDwACeswpVXELUmxGWKyfNgQ"  # Replace with your sticker file_id
     await message.reply_sticker(sticker_id)
 
-    # Then send the welcome message with inline buttons
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("Owner", url="https://t.me/iiiIiiiAiiiMiii")],
-        [InlineKeyboardButton("Updates", url="https://t.me/DLKDevelopers")]
-    ])
-    await message.reply_text(
-        "🎶 Welcome to the Audio Converter Bot! 🎵\n"
-        "📂 Send an audio file to convert it to another format. 😎",
-        reply_markup=keyboard
+    # Stylish Start Message
+    start_text = (
+        "🎵 **Welcome to Audio Converter Bot!** 🎶\n\n"
+        "🔹 Send me an **audio file**, and I'll convert it into your desired format.\n"
+        "🔹 Choose from **MP3, WAV, FLAC, and M4A** formats.\n"
+        "🔹 Fast, **high-quality conversion** with FFmpeg. 🚀\n\n"
+        "⚡ **Let's get started!** Just send an audio file below. ⬇️"
     )
-    
-# 🔹 User sends an audio file, bot extracts the title
+
+    # Inline Buttons
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("👨‍💻 Owner", url="https://t.me/iiiIiiiAiiiMiii")],
+        [InlineKeyboardButton("📢 Updates", url="https://t.me/DLKDevelopers")]
+    ])
+
+    await message.reply_text(start_text, reply_markup=keyboard)
+
+
+# 🔹 User Sends an Audio File
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
     file_id = message.audio.file_id  
-    file_name = message.audio.file_name or "Unknown_Title"  # Extract title
+    file_name = message.audio.file_name or "Unknown_Title"
 
     # Generate a unique identifier for the file
     file_hash = hashlib.md5(str(file_id).encode()).hexdigest()[:8]
     
-    file_data[file_hash] = {"file_id": file_id, "title": file_name}  # Store data
-    
+    file_data[file_hash] = {"file_id": file_id, "title": file_name}  
+
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("MP3", callback_data=f"mp3_{file_hash}")],
-        [InlineKeyboardButton("WAV", callback_data=f"wav_{file_hash}")],
-        [InlineKeyboardButton("FLAC", callback_data=f"flac_{file_hash}")],
-        [InlineKeyboardButton("M4A", callback_data=f"m4a_{file_hash}")]
+        [InlineKeyboardButton("🎵 MP3", callback_data=f"mp3_{file_hash}")],
+        [InlineKeyboardButton("🎼 WAV", callback_data=f"wav_{file_hash}")],
+        [InlineKeyboardButton("🎶 FLAC", callback_data=f"flac_{file_hash}")],
+        [InlineKeyboardButton("🎧 M4A", callback_data=f"m4a_{file_hash}")]
     ])
     
-    await message.reply_text(f"🎵 Choose format to convert '{file_name}':", reply_markup=keyboard)
+    await message.reply_text(f"🎼 **Select the format** to convert `{file_name}`:", reply_markup=keyboard)
 
-# 🔹 Convert audio and rename using the title
+
+# 🔹 Convert Audio and Rename Using Title
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
@@ -70,9 +78,9 @@ async def convert_audio(client, callback_query):
 
     user_id = callback_query.from_user.id
     file_id = file_info["file_id"]
-    original_title = file_info["title"].split(".")[0]  # Remove extension
-    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
-    new_title = f"{sanitized_title}.{output_format}"  # Rename with new format
+    original_title = file_info["title"].split(".")[0]  
+    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  
+    new_title = f"{sanitized_title}.{output_format}"
 
     input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
     output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
@@ -92,33 +100,47 @@ async def convert_audio(client, callback_query):
         "m4a": ["-c:a", "aac"]
     }
 
-    # FFmpeg command
-    command = [
-        "ffmpeg", "-i", file_path
-    ] + codec_map[output_format]
-
-    command += ["-y", output_file]
+    # FFmpeg Command
+    command = ["ffmpeg", "-i", file_path] + codec_map[output_format] + ["-y", output_file]
 
     try:
+        # Show processing message
+        processing_msg = await callback_query.message.reply_text(
+            "⏳ **Processing your file...**\n"
+            f"🎛️ Converting to `{output_format.upper()}` format..."
+        )
+
         # Run FFmpeg and capture errors
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
         if process.returncode != 0:
             error_msg = process.stderr.decode()
-            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
+            await callback_query.message.reply_text(f"❌ **Conversion Failed!**\n```\n{error_msg}\n```", parse_mode="markdown")
             return
 
-        # Send the converted file
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Join Update Channel", url="https://t.me/DLKDevelopers")]
-        ])
+        # ✅ Send Converted File
+        await callback_query.message.reply_document(
+            output_file, 
+            caption=(
+                "🎉 **Conversion Successful!** 🎵\n\n"
+                f"✅ **File:** `{new_title}`\n"
+                f"🎧 **Format:** `{output_format.upper()}`\n"
+                "🚀 **High-quality FFmpeg conversion completed!**\n\n"
+                "💡 **Join our updates for more cool tools!**"
+            ),
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Updates", url="https://t.me/DLKDevelopers")]
+            ])
+        )
 
-        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
-        os.remove(output_file)  # Clean up
+        os.remove(output_file)  # Cleanup output file
+        await processing_msg.delete()  # Remove processing message
+
     except Exception as e:
-        await callback_query.message.reply_text(f"❌ Error converting file: {e}")
+        await callback_query.message.reply_text(f"❌ **Error:** {e}")
 
-    # Cleanup input file
-    os.remove(file_path)
+    os.remove(file_path)  # Cleanup input file
 
+
+# Run the bot
 bot.run()
