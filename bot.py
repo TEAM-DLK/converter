@@ -44,30 +44,32 @@ async def ask_format(client, message):
 
     await message.reply_text(f"🎵 Choose format for '{file_name}':", reply_markup=keyboard)
 
-# 🔹 User selects a format or applies effects
+# 🔹 User selects a format, now they can choose effects (speed and pitch)
 @bot.on_callback_query()
-async def process_callback(client, callback_query):
+async def choose_effects(client, callback_query):
     data_parts = callback_query.data.split("_")
+    
+    # If there are less than 2 parts, then the data is invalid
     if len(data_parts) < 2:
         await callback_query.answer("❌ Invalid request!")
         return
 
-    choice = data_parts[0]
+    format_choice = data_parts[0]
     file_hash = data_parts[1]
-    file_info = file_data.get(file_hash)
-    
-    # Debugging line to check if file_info is retrieved correctly
-    print(f"File data for hash {file_hash}: {file_info}")
 
+    # Debugging line to check if file_info is retrieved correctly
+    print(f"File data for hash {file_hash}: {file_data.get(file_hash)}")
+
+    file_info = file_data.get(file_hash)
     if not file_info:
-        await callback_query.answer("❌ File ID not found!")
+        await callback_query.answer(f"❌ File with hash {file_hash} not found!")
         return
 
     file_id = file_info["file_id"]
     file_name = file_info["title"]
 
-    # If the user selects a format
-    if choice in ["mp3", "wav", "flac", "m4a"]:
+    # If the user selects a format (e.g., mp3, wav, etc.)
+    if format_choice in ["mp3", "wav", "flac", "m4a"]:
         # Ask user if they want to adjust speed or pitch
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("Speed Up", callback_data=f"speed_up_{file_hash}")],
@@ -78,16 +80,16 @@ async def process_callback(client, callback_query):
         ])
 
         await callback_query.message.reply_text(
-            f"🎵 You've selected **{file_name}** to convert to {choice.upper()}.\n"
+            f"🎵 You've selected **{file_name}** to convert to {format_choice.upper()}.\n"
             "Do you want to adjust speed or pitch? Choose an effect below, or select 'No Effects' to convert without any effects.",
             reply_markup=keyboard
         )
 
-    # Apply speed and pitch adjustments
-    elif choice in ["speed_up", "slow_down", "higher_pitch", "lower_pitch", "no_effects"]:
+    # If the user selects an effect (speed, pitch, or no effect)
+    elif format_choice in ["speed_up", "slow_down", "higher_pitch", "lower_pitch", "no_effects"]:
         original_title = file_info["title"].split(".")[0]
         sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")
-        new_title = f"{sanitized_title}_converted.{data_parts[0]}"
+        new_title = f"{sanitized_title}_converted.{format_choice}"
 
         input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
         output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
@@ -102,15 +104,15 @@ async def process_callback(client, callback_query):
         speed_cmd = ""
         pitch_cmd = ""
 
-        if choice == "speed_up":
+        if format_choice == "speed_up":
             speed_cmd = "-filter:a \"atempo=1.5\" "  # Speed up by 1.5x
-        elif choice == "slow_down":
+        elif format_choice == "slow_down":
             speed_cmd = "-filter:a \"atempo=0.7\" "  # Slow down by 0.7x
-        elif choice == "higher_pitch":
+        elif format_choice == "higher_pitch":
             pitch_cmd = "-filter:a \"asetrate=44100*1.2,aresample=44100\" "  # Raise pitch
-        elif choice == "lower_pitch":
+        elif format_choice == "lower_pitch":
             pitch_cmd = "-filter:a \"asetrate=44100*0.8,aresample=44100\" "  # Lower pitch
-        elif choice == "no_effects":
+        elif format_choice == "no_effects":
             pass  # No speed/pitch adjustments
 
         # FFmpeg command to apply the effects and convert
