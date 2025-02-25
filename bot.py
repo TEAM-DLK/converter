@@ -29,11 +29,12 @@ async def save_thumbnail(client, message):
     user_id = message.from_user.id
     thumb_path = os.path.join(Config.DOWNLOAD_FOLDER, f"thumb_{user_id}.jpg")
 
-    await message.photo.download(file_name=thumb_path)
+    # Corrected download method
+    await message.download(file_name=thumb_path)
     user_thumbnails[user_id] = thumb_path
     
     await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
-
+    
 # 🔹 User sends an audio file, bot extracts the title
 @bot.on_message(filters.audio)
 async def ask_format(client, message):
