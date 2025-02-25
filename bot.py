@@ -27,10 +27,9 @@ async def start(client, message):
 @bot.on_message(filters.photo)
 async def save_thumbnail(client, message):
     user_id = message.from_user.id
-    thumb_path = os.path.join("/tmp", f"thumb_{user_id}.jpg")  # Use Heroku temp folder
+    thumb_path = os.path.join(Config.DOWNLOAD_FOLDER, f"thumb_{user_id}.jpg")
 
-    # Use client.download_media to download the photo
-    await client.download_media(message.photo, file_name=thumb_path)
+    await message.photo.download(file_name=thumb_path)
     user_thumbnails[user_id] = thumb_path
     
     await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
@@ -82,8 +81,8 @@ async def convert_audio(client, callback_query):
     sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
     new_title = f"{sanitized_title}.{output_format}"  # Rename with new format
 
-    input_file = os.path.join("/tmp", f"{file_hash}_input")  # Use Heroku temp folder
-    output_file = os.path.join("/tmp", new_title)  # Use Heroku temp folder
+    input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
     
     # Download the media file
     file_path = await client.download_media(file_id, file_name=input_file)
