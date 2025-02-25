@@ -8,6 +8,7 @@ from config import Config
 bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH, bot_token=Config.BOT_TOKEN)
 
 file_data = {}  # Store audio file data (file_id and title)
+selected_effects = {}  # Store effects selected by users
 
 # 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
@@ -47,7 +48,56 @@ async def ask_format(client, message):
     
     await message.reply_text(f"🎵 Choose format to convert '{file_name}':", reply_markup=keyboard)
 
-# 🔹 Convert audio and rename using the title
+# 🔹 /edit Command to apply effects and select format
+@bot.on_message(filters.command("edit"))
+async def edit_audio(client, message):
+    file_hash = message.reply_to_message.audio.file_id
+    original_title = message.reply_to_message.audio.file_name.split(".")[0]  # Remove extension
+    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
+
+    # Send options for applying effects
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Slow", callback_data=f"slow_{file_hash}")],
+        [InlineKeyboardButton("Reverb", callback_data=f"reverb_{file_hash}")],
+        [InlineKeyboardButton("Pitch Down", callback_data=f"pitchdown_{file_hash}")],
+        [InlineKeyboardButton("No Effects", callback_data=f"noeffects_{file_hash}")]
+    ])
+
+    await message.reply_text(
+        "🎶 Choose an effect to apply to the audio. 🎵",
+        reply_markup=keyboard
+    )
+
+# 🔹 User selects an effect via inline buttons
+@bot.on_callback_query()
+async def apply_effect_and_convert(client, callback_query):
+    data_parts = callback_query.data.split("_")
+    if len(data_parts) != 2:
+        await callback_query.answer("❌ Invalid request!")
+        return
+
+    effect = data_parts[0].lower()
+    file_hash = data_parts[1]
+
+    # Store the selected effect
+    selected_effects[file_hash] = effect
+
+    # Respond to user
+    await callback_query.answer(f"Effect '{effect}' selected! Now choose the output format.")
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("MP3", callback_data=f"mp3_{file_hash}")],
+        [InlineKeyboardButton("WAV", callback_data=f"wav_{file_hash}")],
+        [InlineKeyboardButton("FLAC", callback_data=f"flac_{file_hash}")],
+        [InlineKeyboardButton("M4A", callback_data=f"m4a_{file_hash}")]
+    ])
+
+    await callback_query.message.edit_text(
+        f"🎶 Effect '{effect}' applied! Now choose the format to convert your file.",
+        reply_markup=keyboard
+    )
+
+# 🔹 Convert audio and apply the effect
 @bot.on_callback_query()
 async def convert_audio(client, callback_query):
     data_parts = callback_query.data.split("_")
@@ -68,11 +118,14 @@ async def convert_audio(client, callback_query):
         await callback_query.answer("❌ File ID not found!")
         return
 
+    # Get the effect selected by the user
+    effect = selected_effects.get(file_hash, "noeffects")
+
     user_id = callback_query.from_user.id
     file_id = file_info["file_id"]
     original_title = file_info["title"].split(".")[0]  # Remove extension
     sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
-    new_title = f"{sanitized_title}.{output_format}"  # Rename with new format
+    new_title = f"{sanitized_title}_{effect}.{output_format}"  # Rename with new format and effect
 
     input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
     output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
@@ -84,6 +137,14 @@ async def convert_audio(client, callback_query):
     if os.path.exists(output_file):
         os.remove(output_file)
 
+    # Define the FFmpeg command based on the selected effect
+    effect_map = {
+        "slow": ["-filter:a", "atempo=0.7"],  # Slow down the audio by half
+        "reverb": ["-filter:a", "aecho=0.8:0.88:60:0.4"],  # Apply reverb
+        "pitchdown": ["-filter:a", "asetrate=44100*0.8"],  # Pitch down the audio
+        "noeffects": []  # No effect
+    }
+
     # Define FFmpeg codec mapping
     codec_map = {
         "mp3": ["-c:a", "libmp3lame"],
@@ -92,17 +153,15 @@ async def convert_audio(client, callback_query):
         "m4a": ["-c:a", "aac"]
     }
 
-    # FFmpeg command
+    # Prepare the command
     command = [
         "ffmpeg", "-i", file_path
-    ] + codec_map[output_format]
-
-    command += ["-y", output_file]
+    ] + effect_map[effect] + codec_map[output_format] + ["-y", output_file]
 
     try:
         # Run FFmpeg and capture errors
         process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
+
         if process.returncode != 0:
             error_msg = process.stderr.decode()
             await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
@@ -113,10 +172,10 @@ async def convert_audio(client, callback_query):
             [InlineKeyboardButton("Join Update Channel", url="https://t.me/DLKDevelopers")]
         ])
 
-        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
+        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your modified file: **{new_title}** 🎶", reply_markup=keyboard)
         os.remove(output_file)  # Clean up
     except Exception as e:
-        await callback_query.message.reply_text(f"❌ Error converting file: {e}")
+        await callback_query.message.reply_text(f"❌ Error applying effect or converting file: {e}")
 
     # Cleanup input file
     os.remove(file_path)
