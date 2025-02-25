@@ -110,7 +110,7 @@ async def convert_audio(client, callback_query):
 
         # Send the converted file
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Join @DLKDevelopers", url="https://t.me/DLKDevelopers")]
+            [InlineKeyboardButton("Join Update Channel", url="https://t.me/DLKDevelopers")]
         ])
 
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
