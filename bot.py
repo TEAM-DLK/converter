@@ -123,7 +123,11 @@ async def convert_audio(client, callback_query):
             return
 
         # Send the converted file
-        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵")
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Join @DLKDevelopers", url="https://t.me/DLKDevelopers")]
+        ])
+
+        await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
         os.remove(output_file)  # Clean up
     except Exception as e:
         await callback_query.message.reply_text(f"❌ Error converting file: {e}")
