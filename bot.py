@@ -10,10 +10,10 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 
 file_data = {}  # Store audio file data (file_id and title)
 
-# 🔹 Updated File Name Sanitization Function
+# 🔹 Updated File Name Sanitization Function (Supports more languages including Sinhala)
 def sanitize_filename(filename: str):
-    # Allow only alphanumeric characters, spaces, underscores, hyphens, and all Unicode characters (including Sinhala)
-    return re.sub(r'[^\w\s\-_.,()&]', '', filename)
+    # Allow alphanumeric characters, spaces, underscores, hyphens, and all Unicode characters including Sinhala
+    return re.sub(r'[<>:"/\\|?*\x00-\x1F]', '', filename)
 
 # 🔹 Start Command with Sticker and Inline Buttons
 @bot.on_message(filters.command("start"))
