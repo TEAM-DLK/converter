@@ -29,8 +29,7 @@ async def save_thumbnail(client, message):
     user_id = message.from_user.id
     thumb_path = os.path.join(Config.DOWNLOAD_FOLDER, f"thumb_{user_id}.jpg")
 
-    # Corrected download method
-    await message.download(file_name=thumb_path)
+    await message.photo.download(file_name=thumb_path)
     user_thumbnails[user_id] = thumb_path
     
     await message.reply_text("✅ Custom thumbnail saved! Now send an audio file.")
@@ -120,12 +119,12 @@ async def convert_audio(client, callback_query):
         
         if process.returncode != 0:
             error_msg = process.stderr.decode()
-            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="Markdown")
+            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
             return
 
         # Send the converted file
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🇱🇰| DLK Developers", url="https://t.me/DLKDevelopers")]
+            [InlineKeyboardButton("Join @DLKDevelopers", url="https://t.me/DLKDevelopers")]
         ])
 
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵", reply_markup=keyboard)
