@@ -10,9 +10,6 @@ bot = Client("AudioConverterBot", api_id=Config.API_ID, api_hash=Config.API_HASH
 file_data = {}  # Store audio file data (file_id and title)
 user_thumbnails = {}  # Store user thumbnails (user_id -> file_path)
 
-# Path to your default album cover image
-DEFAULT_THUMBNAIL ="default_cover.jpg"
-
 # 🔹 Start Command with Inline Buttons
 @bot.on_message(filters.command("start"))
 async def start(client, message):
@@ -21,8 +18,8 @@ async def start(client, message):
         [InlineKeyboardButton("Updates", url="https://t.me/DLKDevelopers")]
     ])
     await message.reply_text(
-        "Welcome to the Audio Converter Bot! 🎶\n"
-        "Send your audio files to convert. 😎",
+        "🎶 Welcome to the Audio Converter Bot! 🎵\n"
+        "📂 Send an audio file to convert it to another format. 😎",
         reply_markup=keyboard
     )
 
@@ -30,7 +27,7 @@ async def start(client, message):
 @bot.on_message(filters.photo)
 async def save_thumbnail(client, message):
     user_id = message.from_user.id
-    thumb_path = f"{Config.DOWNLOAD_FOLDER}/thumb_{user_id}.jpg"
+    thumb_path = os.path.join(Config.DOWNLOAD_FOLDER, f"thumb_{user_id}.jpg")
 
     await message.photo.download(file_name=thumb_path)
     user_thumbnails[user_id] = thumb_path
@@ -81,17 +78,23 @@ async def convert_audio(client, callback_query):
     user_id = callback_query.from_user.id
     file_id = file_info["file_id"]
     original_title = file_info["title"].split(".")[0]  # Remove extension
-    new_title = f"{original_title}.{output_format}"  # Rename with new format
+    sanitized_title = "".join(c for c in original_title if c.isalnum() or c in " _-")  # Remove special chars
+    new_title = f"{sanitized_title}.{output_format}"  # Rename with new format
 
-    input_file = f"{Config.DOWNLOAD_FOLDER}/input_audio"
-    output_file = f"{Config.DOWNLOAD_FOLDER}/{new_title}"
+    input_file = os.path.join(Config.DOWNLOAD_FOLDER, f"{file_hash}_input")
+    output_file = os.path.join(Config.DOWNLOAD_FOLDER, new_title)
     
+    # Download the media file
     file_path = await client.download_media(file_id, file_name=input_file)
 
-    # Get user's custom thumbnail (or use default)
-    thumbnail = user_thumbnails.get(user_id, DEFAULT_THUMBNAIL)
+    # Ensure output file doesn't exist
+    if os.path.exists(output_file):
+        os.remove(output_file)
 
-    # FFmpeg command to convert and add album cover
+    # Get user's thumbnail (if available)
+    thumbnail = user_thumbnails.get(user_id, None)
+
+    # Define FFmpeg codec mapping
     codec_map = {
         "mp3": ["-c:a", "libmp3lame"],
         "wav": ["-c:a", "pcm_s16le"],
@@ -99,22 +102,33 @@ async def convert_audio(client, callback_query):
         "m4a": ["-c:a", "aac"]
     }
 
-    command = ["ffmpeg", "-i", file_path] + codec_map[output_format]
+    # FFmpeg command
+    command = [
+        "ffmpeg", "-i", file_path
+    ] + codec_map[output_format]
 
-    # Attach album cover (using user's thumbnail or default)
-    command += [
-        "-i", thumbnail, "-map", "0:a", "-map", "1:v", 
-        "-c:v", "mjpeg", "-c:a", "copy", "-disposition:v", "attached_pic",
-        "-y", output_file
-    ]
+    # Attach thumbnail (only for MP3/M4A)
+    if thumbnail and output_format in ["mp3", "m4a"]:
+        command += ["-i", thumbnail, "-map", "0:a", "-map", "1:v", "-c:v", "jpeg", "-disposition:v", "attached_pic"]
+
+    command += ["-y", output_file]
 
     try:
-        subprocess.run(command, check=True)
+        # Run FFmpeg and capture errors
+        process = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        
+        if process.returncode != 0:
+            error_msg = process.stderr.decode()
+            await callback_query.message.reply_text(f"❌ FFmpeg Error:\n```{error_msg}```", parse_mode="markdown")
+            return
+
+        # Send the converted file
         await callback_query.message.reply_document(output_file, caption=f"✅ Here is your converted file: **{new_title}** 🎵")
-        os.remove(output_file)
+        os.remove(output_file)  # Clean up
     except Exception as e:
         await callback_query.message.reply_text(f"❌ Error converting file: {e}")
 
+    # Cleanup input file
     os.remove(file_path)
 
 bot.run()
